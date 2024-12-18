@@ -12,11 +12,199 @@ mongo = PyMongo(app)
 db = mongo.db
 
 users_collection = db.users
-books_collection = db.books
+pets_collection = mongo.db.pets
 
 swagger = Swagger(app)
 
 # Routes
+# Add a new pet
+@app.route("/add_pet", methods=["POST"])
+def add_pet():
+    """
+    Add a new pet
+    ---
+    tags:
+      - Pet
+    parameters:
+      - name: pet
+        in: body
+        required: true
+        description: The pet details to be added
+        schema:
+          type: object
+          properties:
+            name:
+              type: string
+              description: The name of the pet
+            age:
+              type: integer
+              description: The age of the pet
+            type:
+              type: string
+              description: The type of pet (e.g., Dog, Cat)
+            owner:
+              type: string
+              description: The owner's name
+          required:
+            - name
+            - age
+            - type
+            - owner
+    responses:
+      201:
+        description: Pet added successfully
+      400:
+        description: Missing required parameters
+    """
+    data = request.json
+    name = data.get("name")
+    age = data.get("age")
+    pet_type = data.get("type")
+    owner = data.get("owner")
+
+    if not name or not age or not pet_type or not owner:
+        return jsonify({"error": "Name, age, type, and owner are required"}), 400
+
+    pet_id = pets_collection.insert_one({
+        "name": name,
+        "age": age,
+        "type": pet_type,
+        "owner": owner
+    }).inserted_id
+
+    return jsonify({"message": "Pet added successfully", "pet_id": str(pet_id)}), 201
+
+
+# Get all pets
+@app.route("/get_all_pets", methods=["GET"])
+def get_all_pets():
+    """
+    Get all pets
+    ---
+    tags:
+      - Pet
+    responses:
+      200:
+        description: List of all pets
+    """
+    pets = pets_collection.find()
+    pets_list = [{"_id": str(pet["_id"]), "name": pet["name"], "age": pet["age"], "type": pet["type"], "owner": pet["owner"]} for pet in pets]
+    return jsonify(pets_list), 200
+
+@app.route('/update_pet/<pet_id>', methods=['PUT'])
+def update_pet(pet_id):
+    """
+    Update an existing pet
+    --- 
+    tags:
+      - Pet
+    parameters:
+      - name: pet_id
+        in: path
+        required: true
+        description: The ID of the pet to be updated
+        type: string
+      - name: pet
+        in: body
+        required: true
+        description: The updated details of the pet
+        schema:
+          type: object
+          properties:
+            name:
+              type: string
+              description: The name of the pet
+            age:
+              type: integer
+              description: The age of the pet
+            type:
+              type: string
+              description: The type of the pet (e.g., Dog, Cat)
+            owner:
+              type: string
+              description: The owner's name
+          required:
+            - name
+            - age
+            - type
+            - owner
+    responses:
+      200:
+        description: Pet updated successfully
+      400:
+        description: Missing required parameters or invalid pet ID
+      404:
+        description: Pet not found
+    """
+    data = request.json
+    name = data.get("name")
+    age = data.get("age")
+    pet_type = data.get("type")
+    owner = data.get("owner")
+
+    if not name or not age or not pet_type or not owner:
+        return jsonify({"error": "Name, age, type, and owner are required"}), 400
+
+    # Update the pet in the collection
+    result = pets_collection.update_one(
+        {"_id": ObjectId(pet_id)},
+        {"$set": {"name": name, "age": age, "type": pet_type, "owner": owner}}
+    )
+
+    if result.matched_count == 0:
+        return jsonify({"error": "Pet not found"}), 404
+
+    return jsonify({"message": "Pet updated successfully"}), 200
+# Get pet by ID
+@app.route("/get_pet/<string:pet_id>", methods=["GET"])
+def get_pet_by_id(pet_id):
+    """
+    Get a pet by ID
+    ---
+    tags:
+      - Pet
+    parameters:
+      - name: pet_id
+        in: path
+        type: string
+        required: true
+        description: The ID of the pet to retrieve
+    responses:
+      200:
+        description: A single pet
+      404:
+        description: Pet not found
+    """
+    pet = pets_collection.find_one({"_id": ObjectId(pet_id)})
+    if pet:
+        return jsonify({"_id": str(pet["_id"]), "name": pet["name"], "age": pet["age"], "type": pet["type"], "owner": pet["owner"]}), 200
+    return jsonify({"error": "Pet not found"}), 404
+# Delete pet by ID
+@app.route("/delete_pet/<string:pet_id>", methods=["DELETE"])
+def delete_pet(pet_id):
+    """
+    Delete a pet
+    ---
+    tags:
+      - Pet
+    parameters:
+      - name: pet_id
+        in: path
+        type: string
+        required: true
+        description: The ID of the pet to delete
+    responses:
+      200:
+        description: Pet deleted successfully
+      404:
+        description: Pet not found
+    """
+    result = pets_collection.delete_one({"_id": ObjectId(pet_id)})
+
+    if result.deleted_count == 0:
+        return jsonify({"error": "Pet not found"}), 404
+
+    return jsonify({"message": "Pet deleted successfully"}), 200
 
 # Users Routes
 @app.route('/get_users', methods=['GET'])
@@ -191,176 +379,6 @@ def delete_user_by_id(user_id):
     return jsonify({"message": "User deleted successfully"}), 200
 
 
-# Book Routes
-@app.route('/get_books', methods=['GET'])
-def get_books():
-    """
-    Get all books
-    --- 
-    tags:
-      - Book
-    responses:
-      200:
-        description: List of all books
-    """
-    books = books_collection.find()
-    books_list = [{"_id": str(book["_id"]), "title": book["title"], "author": book["author"], "year": book["year"]} for book in books]
-    return jsonify(books_list), 200
-
-@app.route('/get_book/<string:book_id>', methods=['GET'])
-def get_book_by_id(book_id):
-    """
-    Get a book by ID
-    --- 
-    tags:
-      - Book
-    parameters:
-      - name: book_id
-        in: path
-        type: string
-        required: true
-        description: The ID of the book to retrieve
-    responses:
-      200:
-        description: A single book
-      404:
-        description: Book not found
-    """
-    book = books_collection.find_one({"_id": ObjectId(book_id)})
-    if book:
-        return jsonify({"_id": str(book["_id"]), "title": book["title"], "author": book["author"], "year": book["year"]}), 200
-    return jsonify({"error": "Book not found"}), 404
-
-@app.route('/add_book', methods=['POST'])
-def add_book():
-    """
-    Add a new book
-    --- 
-    tags:
-      - Book
-    parameters:
-      - name: book
-        in: body
-        required: true
-        description: The book details to be added
-        schema:
-          type: object
-          properties:
-            title:
-              type: string
-              description: The title of the book
-            author:
-              type: string
-              description: The author of the book
-            year:
-              type: integer
-              description: The publication year of the book
-          required:
-            - title
-            - author
-            - year
-    responses:
-      201:
-        description: Book added successfully
-      400:
-        description: Missing required parameters
-    """
-    data = request.json
-    title = data.get("title")
-    author = data.get("author")
-    year = data.get("year")
-
-    if not title or not author or not year:
-        return jsonify({"error": "Title, author, and year are required"}), 400
-
-    book_id = books_collection.insert_one({"title": title, "author": author, "year": year}).inserted_id
-    return jsonify({"message": "Book added", "book_id": str(book_id)}), 201
-@app.route('/update_book/<book_id>', methods=['PUT'])
-def update_book(book_id):
-    """
-    Update an existing book
-    --- 
-    tags:
-      - Book
-    parameters:
-      - name: book_id
-        in: path
-        required: true
-        description: The ID of the book to be updated
-        type: string
-      - name: book
-        in: body
-        required: true
-        description: The updated details of the book
-        schema:
-          type: object
-          properties:
-            title:
-              type: string
-              description: The title of the book
-            author:
-              type: string
-              description: The author of the book
-            year:
-              type: integer
-              description: The publication year of the book
-          required:
-            - title
-            - author
-            - year
-    responses:
-      200:
-        description: Book updated successfully
-      400:
-        description: Missing required parameters or invalid book ID
-      404:
-        description: Book not found
-    """
-    data = request.json
-    title = data.get("title")
-    author = data.get("author")
-    year = data.get("year")
-
-    if not title or not author or not year:
-        return jsonify({"error": "Title, author, and year are required"}), 400
-
-    # Update the book in the collection
-    result = books_collection.update_one(
-        {"_id": ObjectId(book_id)},
-        {"$set": {"title": title, "author": author, "year": year}}
-    )
-
-    if result.matched_count == 0:
-        return jsonify({"error": "Book not found"}), 404
-
-    return jsonify({"message": "Book updated successfully"}), 200
-
-
-@app.route('/delete_book/<string:book_id>', methods=['DELETE'])
-def delete_book_by_id(book_id):
-    """
-    Delete a book by ID
-    --- 
-    tags:
-      - Book
-    parameters:
-      - name: book_id
-        in: path
-        type: string
-        required: true
-        description: The ID of the book to delete
-    responses:
-      200:
-        description: Book deleted successfully
-      404:
-        description: Book not found
-    """
-    result = books_collection.delete_one({"_id": ObjectId(book_id)})
-
-    if result.deleted_count == 0:
-        return jsonify({"error": "Book not found"}), 404
-
-    return jsonify({"message": "Book deleted successfully"}), 200
 
 
 if __name__ == '__main__':
