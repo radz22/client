@@ -59,16 +59,16 @@ def add_pet():
     data = request.json
     name = data.get("name")
     age = data.get("age")
-    pet_type = data.get("type")
+    type = data.get("type")
     owner = data.get("owner")
 
-    if not name or not age or not pet_type or not owner:
+    if not name or not age or not type or not owner:
         return jsonify({"error": "Name, age, type, and owner are required"}), 400
 
     pet_id = pets_collection.insert_one({
         "name": name,
         "age": age,
-        "type": pet_type,
+        "type": type,
         "owner": owner
     }).inserted_id
 
@@ -139,16 +139,16 @@ def update_pet(pet_id):
     data = request.json
     name = data.get("name")
     age = data.get("age")
-    pet_type = data.get("type")
+    type = data.get("type")
     owner = data.get("owner")
 
-    if not name or not age or not pet_type or not owner:
+    if not name or not age or not type or not owner:
         return jsonify({"error": "Name, age, type, and owner are required"}), 400
 
     # Update the pet in the collection
     result = pets_collection.update_one(
         {"_id": ObjectId(pet_id)},
-        {"$set": {"name": name, "age": age, "type": pet_type, "owner": owner}}
+        {"$set": {"name": name, "age": age, "type": type, "owner": owner}}
     )
 
     if result.matched_count == 0:
